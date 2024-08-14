@@ -1,0 +1,23 @@
+# permissions for end users to view databases.
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  labels:
+    app.kubernetes.io/name: ahti-operator
+    app.kubernetes.io/managed-by: kustomize
+  name: database-viewer-role
+rules:
+- apiGroups:
+  - libsql.ahti.io
+  resources:
+  - databases
+  verbs:
+  - get
+  - list
+  - watch
+- apiGroups:
+  - libsql.ahti.io
+  resources:
+  - databases/status
+  verbs:
+  - get

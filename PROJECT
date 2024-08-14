@@ -10,4 +10,14 @@ plugins:
   scorecard.sdk.operatorframework.io/v2: {}
 projectName: ahti-operator
 repo: github.com/ahti-database/operator
+resources:
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: ahti.io
+  group: libsql
+  kind: Database
+  path: github.com/ahti-database/operator/api/v1
+  version: v1
 version: "3"
