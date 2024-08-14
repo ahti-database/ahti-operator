@@ -43,6 +43,8 @@ spec:
                 description: Foo is an example field of Database. Edit database_types.go
                   to remove/update
                 type: string
+              imagePullPolicy:
+                type: string
               ingress:
                 properties:
                   host:
@@ -139,6 +141,7 @@ spec:
                 type: object
             required:
             - image
+            - imagePullPolicy
             - ingress
             - resources
             - storage

@@ -18,13 +18,15 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
+	libsqlv1 "github.com/ahti-database/operator/api/v1"
+	appsv1 "k8s.io/api/apps/v1"
+	networkingv1 "k8s.io/api/networking/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/log"
-
-	libsqlv1 "github.com/ahti-database/operator/api/v1"
 )
 
 // DatabaseReconciler reconciles a Database object
@@ -47,9 +49,16 @@ type DatabaseReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.3/pkg/reconcile
 func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	_ = log.FromContext(ctx)
+	log := log.FromContext(ctx)
+	log.Info("Reconciling...")
 
-	// TODO(user): your logic here
+	log.Info("Finding existing Ahti Database resource...")
+	// Get the Database object
+	database := &libsqlv1.Database{}
+	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
+	log.Info(fmt.Sprintf("database name: %v", database.Name))
 
 	return ctrl.Result{}, nil
 }
@@ -58,5 +67,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 func (r *DatabaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&libsqlv1.Database{}).
+		Owns(&networkingv1.Ingress{}).
+		Owns(&appsv1.Deployment{}).
 		Complete(r)
 }

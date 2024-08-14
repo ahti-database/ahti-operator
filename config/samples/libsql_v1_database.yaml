@@ -7,7 +7,7 @@ metadata:
   name: database-sample
   namespace: default
 spec:
-  imageName: ghcr.io/tursodatabase/libsql-server:latest
+  image: ghcr.io/tursodatabase/libsql-server:latest
   imagePullPolicy: Always
   storage:
     size: 1Gi

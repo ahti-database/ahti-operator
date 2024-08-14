@@ -41,10 +41,11 @@ type DatabaseSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of Database. Edit database_types.go to remove/update
-	Image    string                      `json:"image"`
-	Storage  DatabaseStorage             `json:"storage"`
-	Ingress  AhtiDatabaseIngressSpec     `json:"ingress"`
-	Resource corev1.ResourceRequirements `json:"resources"`
+	Image           string                      `json:"image"`
+	ImagePullPolicy string                      `json:"imagePullPolicy"`
+	Storage         DatabaseStorage             `json:"storage"`
+	Ingress         AhtiDatabaseIngressSpec     `json:"ingress"`
+	Resource        corev1.ResourceRequirements `json:"resources"`
 }
 
 // DatabaseStatus defines the observed state of Database
