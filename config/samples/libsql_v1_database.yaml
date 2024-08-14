@@ -5,5 +5,23 @@ metadata:
     app.kubernetes.io/name: ahti-operator
     app.kubernetes.io/managed-by: kustomize
   name: database-sample
+  namespace: default
 spec:
-  # TODO(user): Add fields here
+  imageName: ghcr.io/tursodatabase/libsql-server:latest
+  imagePullPolicy: Always
+  storage:
+    size: 1Gi
+  resources:
+    requests:
+      memory: "200Mi"
+      cpu: "200m"
+    limits:
+      memory: "200Mi"
+      cpu: "200m"
+  ingress:
+    ingressClassName: nginx
+    host: ahti.database.com
+    tls:
+    - hosts:
+        - ahti.database.com
+      secretName: secret-tls
