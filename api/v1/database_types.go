@@ -51,7 +51,6 @@ type DatabaseSpec struct {
 type DatabaseStatus struct {
 	// INSERT ADDITIONAL STATUS FIELD - define observed state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
-	LastSyncTime metav1.Time `json:"lastSyncTime"`
 }
 
 //+kubebuilder:object:root=true
