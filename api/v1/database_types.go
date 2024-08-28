@@ -32,7 +32,6 @@ type AhtiDatabaseIngressSpec struct {
 	TLS              []networkingv1.IngressTLS `json:"tls,omitempty" protobuf:"bytes,2,rep,name=tls"`
 }
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
 // NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
 
 // DatabaseSpec defines the desired state of Database
@@ -41,11 +40,14 @@ type DatabaseSpec struct {
 	// Important: Run "make" to regenerate code after modifying this file
 
 	// Foo is an example field of Database. Edit database_types.go to remove/update
-	Image           string                      `json:"image"`
-	ImagePullPolicy string                      `json:"imagePullPolicy"`
-	Storage         DatabaseStorage             `json:"storage"`
-	Ingress         AhtiDatabaseIngressSpec     `json:"ingress"`
-	Resource        corev1.ResourceRequirements `json:"resources"`
+	Image           string          `json:"image"`
+	ImagePullPolicy string          `json:"imagePullPolicy"`
+	Replicas        int             `json:"replicas"`
+	Auth            bool            `json:"auth"`
+	Storage         DatabaseStorage `json:"storage"`
+	// +optional
+	Ingress  *AhtiDatabaseIngressSpec    `json:"ingress,omitempty"`
+	Resource corev1.ResourceRequirements `json:"resources"`
 }
 
 // DatabaseStatus defines the observed state of Database

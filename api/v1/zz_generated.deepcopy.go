@@ -115,7 +115,11 @@ func (in *DatabaseList) DeepCopyObject() runtime.Object {
 func (in *DatabaseSpec) DeepCopyInto(out *DatabaseSpec) {
 	*out = *in
 	out.Storage = in.Storage
-	in.Ingress.DeepCopyInto(&out.Ingress)
+	if in.Ingress != nil {
+		in, out := &in.Ingress, &out.Ingress
+		*out = new(AhtiDatabaseIngressSpec)
+		(*in).DeepCopyInto(*out)
+	}
 	in.Resource.DeepCopyInto(&out.Resource)
 }
 

@@ -39,6 +39,8 @@ spec:
           spec:
             description: DatabaseSpec defines the desired state of Database
             properties:
+              auth:
+                type: boolean
               image:
                 description: Foo is an example field of Database. Edit database_types.go
                   to remove/update
@@ -77,6 +79,8 @@ spec:
                       type: object
                     type: array
                 type: object
+              replicas:
+                type: integer
               resources:
                 description: ResourceRequirements describes the compute resource requirements.
                 properties:
@@ -140,9 +144,10 @@ spec:
                 - size
                 type: object
             required:
+            - auth
             - image
             - imagePullPolicy
-            - ingress
+            - replicas
             - resources
             - storage
             type: object
