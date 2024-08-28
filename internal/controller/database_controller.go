@@ -58,7 +58,24 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
-	log.Info(fmt.Sprintf("database name: %v", database.Name))
+	log.Info(
+		"Listing all database spec fields",
+		"Database.Image", fmt.Sprintf("%v", database.Spec.Image),
+		"Database.ImagePullPolicy", fmt.Sprintf("%v", database.Spec.ImagePullPolicy),
+		"Database.Replicas", fmt.Sprintf("%v", database.Spec.Replicas),
+		"Database.Auth", fmt.Sprintf("%v", database.Spec.Auth),
+		"Database.Storage", fmt.Sprintf("%v", database.Spec.Storage),
+		"Database.Ingress", fmt.Sprintf("%v", database.Spec.Ingress),
+		"Database.Resource", fmt.Sprintf("%v", database.Spec.Resource),
+	)
+	if database.Spec.Ingress != nil {
+		log.Info(
+			"Listing all database spec ingress fields",
+			"Database.Ingress.IngressClassName", fmt.Sprintf("%v", database.Spec.Ingress.IngressClassName),
+			"Database.Ingress.Host", fmt.Sprintf("%v", database.Spec.Ingress.Host),
+			"Database.Ingress.TLS", fmt.Sprintf("%v", database.Spec.Ingress.TLS),
+		)
+	}
 
 	return ctrl.Result{}, nil
 }

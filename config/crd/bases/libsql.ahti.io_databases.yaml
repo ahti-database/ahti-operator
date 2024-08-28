@@ -42,8 +42,6 @@ spec:
               auth:
                 type: boolean
               image:
-                description: Foo is an example field of Database. Edit database_types.go
-                  to remove/update
                 type: string
               imagePullPolicy:
                 type: string

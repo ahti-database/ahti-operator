@@ -39,7 +39,6 @@ type DatabaseSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Database. Edit database_types.go to remove/update
 	Image           string          `json:"image"`
 	ImagePullPolicy string          `json:"imagePullPolicy"`
 	Replicas        int             `json:"replicas"`
