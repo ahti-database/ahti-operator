@@ -68,7 +68,12 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		"Database.Ingress", fmt.Sprintf("%v", database.Spec.Ingress),
 		"Database.Resource", fmt.Sprintf("%v", database.Spec.Resource),
 	)
+	// create secret if not yet created
+	// get secret jwt key if created already
+	// upsert all statefulsets with the secret jwt reference from above
+	// upsert all services
 	if database.Spec.Ingress != nil {
+		// upsert ingress
 		log.Info(
 			"Listing all database spec ingress fields",
 			"Database.Ingress.IngressClassName", fmt.Sprintf("%v", database.Spec.Ingress.IngressClassName),
