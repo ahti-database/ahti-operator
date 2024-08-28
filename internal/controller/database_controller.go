@@ -68,6 +68,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		"Database.Ingress", fmt.Sprintf("%v", database.Spec.Ingress),
 		"Database.Resource", fmt.Sprintf("%v", database.Spec.Resource),
 	)
+	// ref from https://sdk.operatorframework.io/docs/building-operators/golang/tutorial/
 	// create secret if not yet created
 	// get secret jwt key if created already
 	// upsert all statefulsets with the secret jwt reference from above
