@@ -18,7 +18,7 @@ package controller
 
 import (
 	"context"
-	"encoding/hex"
+	"encoding/base64"
 	"errors"
 	"fmt"
 
@@ -41,7 +41,11 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-const databaseFinalizer = "libsql.ahti.io/finalizer"
+const (
+	databaseFinalizer = "libsql.ahti.io/finalizer"
+	databaseLabel     = "ahti.database.io/managed-by"
+	databaseAppName   = "ahti-database"
+)
 
 // Definitions to manage status conditions
 const (
@@ -241,22 +245,40 @@ func (r *DatabaseReconciler) doFinalizerOperationsForDatabase(ctx context.Contex
 	// to set the ownerRef which means that the Deployment will be deleted by the Kubernetes API.
 	// More info: https://kubernetes.io/docs/tasks/administer-cluster/use-cascading-deletion/
 
-	log := log.FromContext(ctx)
 	// The following implementation will raise an event
+	log := log.FromContext(ctx)
 	r.Recorder.Event(database, "Warning", "Deleting",
 		fmt.Sprintf("Custom Resource %s is being deleted from the namespace %s",
 			database.Name,
 			database.Namespace))
 
+	err := r.deleteDatabasePVC(ctx, database)
+	if err != nil {
+		log.Error(err, "Failed to delete database PVC")
+	}
+
+	err = r.deleteDatabaseAuthSecret(ctx, database)
+	if err != nil {
+		if apierrors.IsNotFound(err) {
+			log.Error(err, "secret resources not found. Ignoring since object must be deleted")
+		} else {
+			log.Error(err, "Failed to delete auth secret")
+		}
+	}
+}
+
+func (r *DatabaseReconciler) deleteDatabasePVC(ctx context.Context, database *libsqlv1.Database) error {
+	log := log.FromContext(ctx)
 	databasePVCList := &corev1.PersistentVolumeClaimList{}
 	pvcLabels := labels.NewSelector()
-	appNameRequirement, err := labels.NewRequirement("app", selection.Equals, []string{database.Name})
+	appNameRequirement, err := labels.NewRequirement("app", selection.Equals, []string{databaseAppName})
 	if err != nil {
 		log.Error(err, "error trying to select app labels")
 	}
-	controlledByRequirement, err := labels.NewRequirement("ahti.database.io/managed-by", selection.Equals, []string{})
+	controlledByRequirement, err := labels.NewRequirement(databaseLabel, selection.Equals, []string{database.Name})
 	if err != nil {
 		log.Error(err, "error trying to select app labels")
+		return err
 	}
 	pvcLabels.Add(
 		*appNameRequirement,
@@ -266,7 +288,7 @@ func (r *DatabaseReconciler) doFinalizerOperationsForDatabase(ctx context.Contex
 		LabelSelector: pvcLabels,
 	}); err != nil {
 		log.Error(err, "pvc resources not found. Ignoring since object must be deleted")
-		return
+		return err
 	}
 	for _, databasePVC := range databasePVCList.Items {
 		if err := r.Delete(ctx, &databasePVC); err != nil {
@@ -274,9 +296,18 @@ func (r *DatabaseReconciler) doFinalizerOperationsForDatabase(ctx context.Contex
 		}
 	}
 
-	// TODO: delete secret
-	authSecret := &corev1.Secret{}
+	return nil
+}
 
+func (r *DatabaseReconciler) deleteDatabaseAuthSecret(ctx context.Context, database *libsqlv1.Database) error {
+	authSecret := &corev1.Secret{}
+	if err := r.Get(ctx, types.NamespacedName{Namespace: database.Namespace, Name: fmt.Sprintf("%v-auth-key", database.Name)}, authSecret); err != nil {
+		return err
+	}
+	if err := r.Delete(ctx, authSecret); err != nil {
+		return err
+	}
+	return nil
 }
 
 func (r *DatabaseReconciler) getOrCreateAuthSecret(
@@ -292,13 +323,15 @@ func (r *DatabaseReconciler) getOrCreateAuthSecret(
 			if err != nil {
 				return nil, err
 			}
-			log.Info("logging keys", "PUBLIC KEY", hex.EncodeToString(publicKey), "PRIVATE KEY", hex.EncodeToString(privateKey))
 			authSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
 					Name:      authSecretName.Name,
 					Namespace: authSecretName.Namespace,
 				},
-				StringData: map[string]string{"SQLD_AUTH_JWT_KEY": string(publicKey), "PRIVATE_KEY": string(privateKey)},
+				StringData: map[string]string{
+					"PUBLIC_KEY":  base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(publicKey),
+					"PRIVATE_KEY": base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(privateKey),
+				},
 			}
 			if err := r.Create(ctx, authSecret); err != nil {
 				return nil, err

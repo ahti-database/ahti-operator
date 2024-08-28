@@ -13,7 +13,7 @@ func GenerateAsymmetricKeys() (ed25519.PublicKey, ed25519.PrivateKey, error) {
 	return publicKey, privateKey, err
 }
 
-func GenerateJWT(key []byte) (string, error) {
+func GenerateJWT(key ed25519.PrivateKey) (string, error) {
 	t := jwt.New(jwt.SigningMethodEdDSA)
 	jwt, err := t.SignedString(key)
 	return jwt, err

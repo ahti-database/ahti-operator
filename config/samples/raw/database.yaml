@@ -3,7 +3,8 @@ kind: Secret
 metadata:
   name: sample-database-auth-key
 stringData:
-  SQLD_AUTH_JWT_KEY: 6oPtG2exf8zRDMdhIbcB5Nlor6ipAG3bHipp7u_XawU
+  PUBLIC_KEY: LMpsCh2l9nMuiCMt69x1MMkeF8-mXtO3VXXvF6RtkyU
+  PRIVATE_KEY: XFHxju0KOwLMo0FpkUl47jQQWLVG0U96xyUcnsTstN4symwKHaX2cy6IIy3r3HUwyR4Xz6Ze07dVde8XpG2TJQ
 ---
 apiVersion: v1
 kind: Service
@@ -11,7 +12,8 @@ metadata:
   name: sample-database-primary
   namespace: default
   labels:
-    app: sample-database
+    app: ahti-database
+    ahti.database.io/managed-by: sample-database
     node: primary
 spec:
   ports:
@@ -25,28 +27,31 @@ spec:
     name: primary-grpc
   clusterIP: None
   selector:
-    app: sample-database
+    app: ahti-database
+    ahti.database.io/managed-by: sample-database
     node: primary
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   labels:
-    app: sample-database
+    ahti.database.io/managed-by: sample-database
     node: primary
   name: sample-database-primary
   namespace: default
 spec:
   selector:
     matchLabels:
-      app: sample-database
+      app: ahti-database
+      ahti.database.io/managed-by: sample-database
       node: primary
   serviceName: "sample-database-primary"
   replicas: 1 # by default is 1
   template:
     metadata:
       labels:
-        app: sample-database
+        app: ahti-database
+        ahti.database.io/managed-by: sample-database
         node: primary
     spec:
       containers:
@@ -81,7 +86,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: sample-database-auth-key
-                  key: SQLD_AUTH_JWT_KEY
+                  key: PUBLIC_KEY
           volumeMounts:
             - name: sample-database-pvc
               mountPath: /var/lib/sqld
@@ -101,7 +106,8 @@ metadata:
   name: sample-database-replica
   namespace: default
   labels:
-    app: sample-database
+    app: ahti-database
+    ahti.database.io/managed-by: sample-database
     node: replica
 spec:
   ports:
@@ -115,28 +121,29 @@ spec:
     name: replica-grpc
   clusterIP: None
   selector:
-    app: sample-database
+    ahti.database.io/managed-by: sample-database
     node: replica
 ---
 apiVersion: apps/v1
 kind: StatefulSet
 metadata:
   labels:
-    app: sample-database
+    app: ahti-database
+    ahti.database.io/managed-by: sample-database
     node: replica
   name: sample-database-replica
   namespace: default
 spec:
   selector:
     matchLabels:
-      app: sample-database
+      ahti.database.io/managed-by: sample-database
       node: replica
   serviceName: "sample-database-replica"
   replicas: 2 # by default is 1
   template:
     metadata:
       labels:
-        app: sample-database
+        ahti.database.io/managed-by: sample-database
         node: replica
     spec:
       containers:
@@ -173,7 +180,7 @@ spec:
               valueFrom:
                 secretKeyRef:
                   name: sample-database-auth-key
-                  key: SQLD_AUTH_JWT_KEY
+                  key: PUBLIC_KEY
           volumeMounts:
             - name: sample-database-pvc
               mountPath: /var/lib/sqld
@@ -193,7 +200,8 @@ metadata:
   name: sample-database
   namespace: default
   labels:
-    app: sample-database
+    app: ahti-database
+    ahti.database.io/managed-by: sample-database
 spec:
   ports:
   - port: 8080
@@ -205,7 +213,7 @@ spec:
     protocol: TCP
     name: grpc
   selector:
-    app: sample-database
+    ahti.database.io/managed-by: sample-database
 ---
 apiVersion: networking.k8s.io/v1
 kind: Ingress
