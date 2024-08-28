@@ -11,13 +11,22 @@ from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 privkey = Ed25519PrivateKey.generate()
-pubkey = privkey.public_key()
+privkey_base64 = base64.b64encode(
+    privkey.private_bytes(
+        encoding=serialization.Encoding.PEM,
+        format=serialization.PrivateFormat.PKCS8,
+        encryption_algorithm=serialization.NoEncryption(),
+    ),
+    altchars=b"-_",
+)
+while privkey_base64[-1] == ord("="):
+    privkey_base64 = privkey_base64[:-1]
 
+pubkey = privkey.public_key()
 pubkey_pem = pubkey.public_bytes(
     encoding=serialization.Encoding.PEM,
     format=serialization.PublicFormat.SubjectPublicKeyInfo,
 )
-
 pubkey_base64 = base64.b64encode(
     pubkey.public_bytes(
         encoding=serialization.Encoding.Raw,
@@ -43,6 +52,10 @@ token = jwt.encode(claims, privkey_pem, "EdDSA")
 claims["a"] = "ro"
 ro_token = jwt.encode(claims, privkey_pem, "EdDSA")
 
-print(f"jwt-key: {pubkey_base64.decode()}")
+# open("jwt_key.pem", "wb").write(pubkey_pem)
+# open("jwt_key.base64", "wb").write(pubkey_base64)
+
+print(f"private key: {privkey_base64.decode()}")
+print(f"public key: {pubkey_base64.decode()}")
 print(f"Full access: {token}")
 print(f"Read-only:   {ro_token}")

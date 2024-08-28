@@ -3,6 +3,7 @@ module github.com/ahti-database/operator
 go 1.21
 
 require (
+	github.com/golang-jwt/jwt/v5 v5.2.1
 	github.com/onsi/ginkgo/v2 v2.14.0
 	github.com/onsi/gomega v1.30.0
 	k8s.io/api v0.29.2
