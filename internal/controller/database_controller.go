@@ -18,26 +18,23 @@ package controller
 
 import (
 	"context"
-	"encoding/base64"
 	"errors"
 	"fmt"
 
 	libsqlv1 "github.com/ahti-database/operator/api/v1"
-	"github.com/ahti-database/operator/internal/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
 	apierrors "k8s.io/apimachinery/pkg/api/errors"
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
-	"k8s.io/apimachinery/pkg/labels"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/selection"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
 	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
+	"sigs.k8s.io/controller-runtime/pkg/handler"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
@@ -81,28 +78,22 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// Get the Database object
 	database := &libsqlv1.Database{}
 	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-		if apierrors.IsNotFound(err) {
-			// If the custom resource is not found then it usually means that it was deleted or not created
-			// In this way, we will stop the reconciliation
-			log.Info("database resource not found. Ignoring since object must be deleted")
-			return ctrl.Result{}, nil
-		}
-		// Error reading the object - requeue the request.
-		log.Error(err, "Failed to get database")
-		return ctrl.Result{}, err
+		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	// Let's just set the status as Unknown when no status is available
 	if len(database.Status.Conditions) == 0 || database.Status.Conditions == nil {
-		log.Info("setting status as unknown when no status is available")
-		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase, Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
-		if err := r.Status().Update(ctx, database); err != nil {
-			log.Error(err, "Failed to update database status")
-			return ctrl.Result{}, err
-		}
-
-		if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
+		changed := meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase, Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
+		if changed {
+			if err := r.Status().Update(ctx, database); err != nil {
+				// requeue for case of stale data without raising errors
+				// https://github.com/kubernetes-sigs/controller-runtime/issues/1464
+				if apierrors.IsConflict(err) {
+					return ctrl.Result{Requeue: true}, nil
+				}
+				log.Error(err, "Failed to update Database status")
+				return ctrl.Result{}, err
+			}
 		}
 	}
 
@@ -110,71 +101,58 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// occur before the custom resource is deleted.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
 	if !controllerutil.ContainsFinalizer(database, databaseFinalizer) {
-
-		// Let's re-fetch the database Custom Resource after updating the status
-		// so that we have the latest state of the resource on the cluster and we will avoid
-		// raising the error "the object has been modified, please apply
-		// your changes to the latest version and try again" which would re-trigger the reconciliation
-		// if we try to update it again in the following operations
-		if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-			return ctrl.Result{}, client.IgnoreNotFound(err)
-		}
-
 		log.Info("Adding Finalizer for Database")
 		if ok := controllerutil.AddFinalizer(database, databaseFinalizer); !ok {
 			log.Error(errors.New("failed to add finalizer"), "Failed to add finalizer into the custom resource")
 			return ctrl.Result{Requeue: true}, nil
 		}
 		if err := r.Update(ctx, database); err != nil {
-			log.Error(err, "Failed to update custom resource to add finalizer")
+			if apierrors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			log.Error(err, fmt.Sprintf("Failed to update custom resource to add finalizer %v", database.Finalizers))
 			return ctrl.Result{}, err
 		}
 	}
 
 	// Check if the Database instance is marked to be deleted, which is
 	// indicated by the deletion timestamp being set.
-	isDatabaseMarkedToBeDeleted := database.GetDeletionTimestamp() != nil
+	isDatabaseMarkedToBeDeleted := database.GetDeletionTimestamp() != nil && !database.GetDeletionTimestamp().IsZero()
 	if isDatabaseMarkedToBeDeleted {
 		if controllerutil.ContainsFinalizer(database, databaseFinalizer) {
 			log.Info("Performing Finalizer Operations for Database before delete CR")
-
 			// Let's add here a status "Downgrade" to reflect that this resource began its process to be terminated.
-			if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-				return ctrl.Result{}, client.IgnoreNotFound(err)
-			}
-			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeDegradedDatabase,
+			changed := meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeDegradedDatabase,
 				Status: metav1.ConditionUnknown, Reason: "Finalizing",
 				Message: fmt.Sprintf("Performing finalizer operations for the custom resource: %s ", database.Name)})
-
-			if err := r.Status().Update(ctx, database); err != nil {
-				log.Error(err, "Failed to update Database status")
-				return ctrl.Result{}, err
+			if changed {
+				if err := r.Status().Update(ctx, database); err != nil {
+					if apierrors.IsConflict(err) {
+						return ctrl.Result{Requeue: true}, nil
+					}
+					log.Error(err, "Failed to update Database status")
+					return ctrl.Result{}, err
+				}
 			}
-
 			// Perform all operations required before removing the finalizer and allow
 			// the Kubernetes API to remove the custom resource.
 
-			r.doFinalizerOperationsForDatabase(ctx, database)
+			// r.doFinalizerOperationsForDatabase(ctx, database)
 
 			// If you add operations to the doFinalizerOperationsForDatabase method
 			// then you need to ensure that all worked fine before deleting and updating the Downgrade status
 			// otherwise, you should requeue here.
-
-			// Re-fetch the Database Custom Resource before updating the status
-			// so that we have the latest state of the resource on the cluster and we will avoid
-			// raising the error "the object has been modified, please apply
-			// your changes to the latest version and try again" which would re-trigger the reconciliation
-			if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-				return ctrl.Result{}, client.IgnoreNotFound(err)
-			}
-
-			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeDegradedDatabase,
+			changed = meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeDegradedDatabase,
 				Status: metav1.ConditionTrue, Reason: "Finalizing",
 				Message: fmt.Sprintf("Finalizer operations for custom resource %s name were successfully accomplished", database.Name)})
-
-			if err := r.Status().Update(ctx, database); err != nil {
-				log.Error(err, "Failed to update Database status")
-				return ctrl.Result{}, err
+			if changed {
+				if err := r.Status().Update(ctx, database); err != nil {
+					if apierrors.IsConflict(err) {
+						return ctrl.Result{Requeue: true}, nil
+					}
+					log.Error(err, "Failed to update Database status")
+					return ctrl.Result{}, err
+				}
 			}
 
 			log.Info("Removing Finalizer for Database after successfully perform the operations")
@@ -184,6 +162,9 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			}
 
 			if err := r.Update(ctx, database); err != nil {
+				if apierrors.IsConflict(err) {
+					return ctrl.Result{Requeue: true}, nil
+				}
 				log.Error(err, "Failed to remove finalizer for Database")
 				return ctrl.Result{}, err
 			}
@@ -204,7 +185,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// https://github.com/operator-framework/operator-sdk/blob/master/testdata/go/v4/memcached-operator/internal/controller/memcached_controller.go
 	// create secret if not yet created
 
-	databaseAuthSecret, err := r.getOrCreateAuthSecret(ctx, types.NamespacedName{Namespace: req.Namespace, Name: fmt.Sprintf("%v-auth-key", database.Name)})
+	databaseAuthSecret, err := r.GetOrCreateAuthSecret(ctx, types.NamespacedName{Namespace: req.Namespace, Name: fmt.Sprintf("%v-auth-key", database.Name)}, database)
 	if err != nil {
 		log.Error(err, "Failed to get/create database auth secret")
 		return ctrl.Result{}, err
@@ -224,17 +205,18 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// 	)
 	// }
 
-	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-		return ctrl.Result{}, client.IgnoreNotFound(err)
-	}
 	// The following implementation will update the status
-	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase,
+	changed := meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase,
 		Status: metav1.ConditionTrue, Reason: "Reconciling",
 		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", database.Name, database.Spec.Replicas)})
-
-	if err := r.Status().Update(ctx, database); err != nil {
-		log.Error(err, "Failed to update Database status")
-		return ctrl.Result{}, err
+	if changed {
+		if err := r.Status().Update(ctx, database); err != nil {
+			if apierrors.IsConflict(err) {
+				return ctrl.Result{Requeue: true}, nil
+			}
+			log.Error(err, "Failed to update Database status")
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -260,95 +242,11 @@ func (r *DatabaseReconciler) doFinalizerOperationsForDatabase(ctx context.Contex
 			database.Name,
 			database.Namespace))
 
-	// err := r.deleteDatabasePVC(ctx, database)
-	// if err != nil {
-	// 	log.Error(err, "Failed to delete database PVC")
-	// }
-
-	err := r.deleteDatabaseAuthSecret(ctx, database)
+	err := r.DeleteDatabasePVC(ctx, database)
 	if err != nil {
-		if apierrors.IsNotFound(err) {
-			log.Error(err, "secret resources not found. Ignoring since object must be deleted")
-		} else {
-			log.Error(err, "Failed to delete auth secret")
-		}
-	}
-}
-
-func (r *DatabaseReconciler) deleteDatabasePVC(ctx context.Context, database *libsqlv1.Database) error {
-	log := log.FromContext(ctx)
-	databasePVCList := &corev1.PersistentVolumeClaimList{}
-	pvcLabels := labels.NewSelector()
-	appNameRequirement, err := labels.NewRequirement("app", selection.Equals, []string{databaseAppName})
-	if err != nil {
-		log.Error(err, "error trying to select app labels")
-	}
-	controlledByRequirement, err := labels.NewRequirement(databaseLabel, selection.Equals, []string{database.Name})
-	if err != nil {
-		log.Error(err, "error trying to select app labels")
-		return err
-	}
-	pvcLabels.Add(
-		*appNameRequirement,
-		*controlledByRequirement,
-	)
-	if err := r.List(ctx, databasePVCList, &client.ListOptions{
-		LabelSelector: pvcLabels,
-	}); err != nil {
-		log.Error(err, "pvc resources not found. Ignoring since object must be deleted")
-		return err
-	}
-	for _, databasePVC := range databasePVCList.Items {
-		if err := r.Delete(ctx, &databasePVC); err != nil {
-			log.Error(err, "pvc resources not found. Ignoring since object must be deleted")
-		}
+		log.Error(err, "Failed to delete database PVC")
 	}
 
-	return nil
-}
-
-func (r *DatabaseReconciler) deleteDatabaseAuthSecret(ctx context.Context, database *libsqlv1.Database) error {
-	authSecret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: database.Namespace, Name: fmt.Sprintf("%v-auth-key", database.Name)}, authSecret); err != nil {
-		return err
-	}
-	if err := r.Delete(ctx, authSecret); err != nil {
-		return err
-	}
-	return nil
-}
-
-func (r *DatabaseReconciler) getOrCreateAuthSecret(
-	ctx context.Context,
-	authSecretName types.NamespacedName,
-) (*corev1.Secret, error) {
-	log := log.FromContext(ctx)
-	authSecret := &corev1.Secret{}
-	if err := r.Get(ctx, authSecretName, authSecret); err != nil {
-		if apierrors.IsNotFound(err) {
-			log.Info("Creating Auth Secret")
-			publicKey, privateKey, err := utils.GenerateAsymmetricKeys()
-			if err != nil {
-				return nil, err
-			}
-			authSecret = &corev1.Secret{
-				ObjectMeta: metav1.ObjectMeta{
-					Name:      authSecretName.Name,
-					Namespace: authSecretName.Namespace,
-				},
-				StringData: map[string]string{
-					"PUBLIC_KEY":  base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(publicKey),
-					"PRIVATE_KEY": base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(privateKey),
-				},
-			}
-			if err := r.Create(ctx, authSecret); err != nil {
-				return nil, err
-			}
-		} else {
-			return nil, err
-		}
-	}
-	return authSecret, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
@@ -357,5 +255,10 @@ func (r *DatabaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 		For(&libsqlv1.Database{}).
 		Owns(&networkingv1.Ingress{}).
 		Owns(&appsv1.Deployment{}).
+		Owns(&corev1.Secret{}).
+		Watches(
+			&corev1.Secret{},
+			handler.EnqueueRequestsFromMapFunc(r.MapAuthSecretsToReconcile),
+		).
 		Complete(r)
 }
