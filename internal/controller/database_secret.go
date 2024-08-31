@@ -17,7 +17,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func (r *DatabaseReconciler) GetOrCreateAuthSecret(
+func (r *DatabaseReconciler) ReconcileSecrets(
 	ctx context.Context,
 	authSecretName types.NamespacedName,
 	database *libsqlv1.Database,
@@ -25,7 +25,7 @@ func (r *DatabaseReconciler) GetOrCreateAuthSecret(
 	log := log.FromContext(ctx)
 	authSecret := &corev1.Secret{}
 	if err := r.Get(ctx, authSecretName, authSecret); err != nil {
-		if apierrors.IsNotFound(err) {
+		if database.Spec.Auth && apierrors.IsNotFound(err) {
 			log.Info("Creating Auth Secret")
 			publicKey, privateKey, err := utils.GenerateAsymmetricKeys()
 			if err != nil {
@@ -52,9 +52,18 @@ func (r *DatabaseReconciler) GetOrCreateAuthSecret(
 			if err := r.Create(ctx, authSecret); err != nil {
 				return nil, err
 			}
+		} else if !database.Spec.Auth && apierrors.IsNotFound(err) {
+			return nil, nil
 		} else {
 			return nil, err
 		}
+	}
+	if !database.Spec.Auth {
+		// delete secret if database does not need auth
+		if err := r.Delete(ctx, authSecret); err != nil {
+			return nil, err
+		}
+		return nil, nil
 	}
 	return authSecret, nil
 }
