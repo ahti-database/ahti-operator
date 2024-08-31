@@ -77,9 +77,7 @@ type DatabaseReconciler struct {
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.17.3/pkg/reconcile
 func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	log := log.FromContext(ctx)
-	log.Info("Reconciling...")
 
-	log.Info("Finding existing Ahti Database resource...")
 	// Get the Database object
 	database := &libsqlv1.Database{}
 	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
@@ -95,21 +93,16 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	}
 
 	// Let's just set the status as Unknown when no status is available
-	if len(database.Status.Conditions) == 0 {
+	if len(database.Status.Conditions) == 0 || database.Status.Conditions == nil {
+		log.Info("setting status as unknown when no status is available")
 		meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase, Status: metav1.ConditionUnknown, Reason: "Reconciling", Message: "Starting reconciliation"})
 		if err := r.Status().Update(ctx, database); err != nil {
 			log.Error(err, "Failed to update database status")
 			return ctrl.Result{}, err
 		}
 
-		// Let's re-fetch the database Custom Resource after updating the status
-		// so that we have the latest state of the resource on the cluster and we will avoid
-		// raising the error "the object has been modified, please apply
-		// your changes to the latest version and try again" which would re-trigger the reconciliation
-		// if we try to update it again in the following operations
 		if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-			log.Error(err, "Failed to re-fetch database")
-			return ctrl.Result{}, err
+			return ctrl.Result{}, client.IgnoreNotFound(err)
 		}
 	}
 
@@ -117,12 +110,21 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// occur before the custom resource is deleted.
 	// More info: https://kubernetes.io/docs/concepts/overview/working-with-objects/finalizers
 	if !controllerutil.ContainsFinalizer(database, databaseFinalizer) {
+
+		// Let's re-fetch the database Custom Resource after updating the status
+		// so that we have the latest state of the resource on the cluster and we will avoid
+		// raising the error "the object has been modified, please apply
+		// your changes to the latest version and try again" which would re-trigger the reconciliation
+		// if we try to update it again in the following operations
+		if err := r.Get(ctx, req.NamespacedName, database); err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+
 		log.Info("Adding Finalizer for Database")
 		if ok := controllerutil.AddFinalizer(database, databaseFinalizer); !ok {
 			log.Error(errors.New("failed to add finalizer"), "Failed to add finalizer into the custom resource")
 			return ctrl.Result{Requeue: true}, nil
 		}
-
 		if err := r.Update(ctx, database); err != nil {
 			log.Error(err, "Failed to update custom resource to add finalizer")
 			return ctrl.Result{}, err
@@ -137,6 +139,9 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			log.Info("Performing Finalizer Operations for Database before delete CR")
 
 			// Let's add here a status "Downgrade" to reflect that this resource began its process to be terminated.
+			if err := r.Get(ctx, req.NamespacedName, database); err != nil {
+				return ctrl.Result{}, client.IgnoreNotFound(err)
+			}
 			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeDegradedDatabase,
 				Status: metav1.ConditionUnknown, Reason: "Finalizing",
 				Message: fmt.Sprintf("Performing finalizer operations for the custom resource: %s ", database.Name)})
@@ -148,6 +153,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 
 			// Perform all operations required before removing the finalizer and allow
 			// the Kubernetes API to remove the custom resource.
+
 			r.doFinalizerOperationsForDatabase(ctx, database)
 
 			// If you add operations to the doFinalizerOperationsForDatabase method
@@ -159,8 +165,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 			// raising the error "the object has been modified, please apply
 			// your changes to the latest version and try again" which would re-trigger the reconciliation
 			if err := r.Get(ctx, req.NamespacedName, database); err != nil {
-				log.Error(err, "Failed to re-fetch Database")
-				return ctrl.Result{}, err
+				return ctrl.Result{}, client.IgnoreNotFound(err)
 			}
 
 			meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeDegradedDatabase,
@@ -196,29 +201,32 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		"Database.Ingress", fmt.Sprintf("%v", database.Spec.Ingress),
 		"Database.Resource", fmt.Sprintf("%v", database.Spec.Resource),
 	)
-	// https://github.com/operator-framework/operator-sdk/blob/latest/testdata/go/v4/database-operator/internal/controller/database_controller.go
+	// https://github.com/operator-framework/operator-sdk/blob/master/testdata/go/v4/memcached-operator/internal/controller/memcached_controller.go
 	// create secret if not yet created
+
 	databaseAuthSecret, err := r.getOrCreateAuthSecret(ctx, types.NamespacedName{Namespace: req.Namespace, Name: fmt.Sprintf("%v-auth-key", database.Name)})
 	if err != nil {
 		log.Error(err, "Failed to get/create database auth secret")
 		return ctrl.Result{}, err
 	}
-
 	log.Info(databaseAuthSecret.Name)
 
 	// get secret jwt key if created already
 	// upsert all statefulsets with the secret jwt reference from above
 	// upsert all services
-	if database.Spec.Ingress != nil {
-		// upsert ingress
-		log.Info(
-			"Listing all database spec ingress fields",
-			"Database.Ingress.IngressClassName", fmt.Sprintf("%v", database.Spec.Ingress.IngressClassName),
-			"Database.Ingress.Host", fmt.Sprintf("%v", database.Spec.Ingress.Host),
-			"Database.Ingress.TLS", fmt.Sprintf("%v", database.Spec.Ingress.TLS),
-		)
-	}
+	// if database.Spec.Ingress != nil {
+	// 	// upsert ingress
+	// 	log.Info(
+	// 		"Listing all database spec ingress fields",
+	// 		"Database.Ingress.IngressClassName", fmt.Sprintf("%v", database.Spec.Ingress.IngressClassName),
+	// 		"Database.Ingress.Host", fmt.Sprintf("%v", database.Spec.Ingress.Host),
+	// 		"Database.Ingress.TLS", fmt.Sprintf("%v", database.Spec.Ingress.TLS),
+	// 	)
+	// }
 
+	if err := r.Get(ctx, req.NamespacedName, database); err != nil {
+		return ctrl.Result{}, client.IgnoreNotFound(err)
+	}
 	// The following implementation will update the status
 	meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase,
 		Status: metav1.ConditionTrue, Reason: "Reconciling",
@@ -252,12 +260,12 @@ func (r *DatabaseReconciler) doFinalizerOperationsForDatabase(ctx context.Contex
 			database.Name,
 			database.Namespace))
 
-	err := r.deleteDatabasePVC(ctx, database)
-	if err != nil {
-		log.Error(err, "Failed to delete database PVC")
-	}
+	// err := r.deleteDatabasePVC(ctx, database)
+	// if err != nil {
+	// 	log.Error(err, "Failed to delete database PVC")
+	// }
 
-	err = r.deleteDatabaseAuthSecret(ctx, database)
+	err := r.deleteDatabaseAuthSecret(ctx, database)
 	if err != nil {
 		if apierrors.IsNotFound(err) {
 			log.Error(err, "secret resources not found. Ignoring since object must be deleted")
