@@ -77,9 +77,6 @@ spec:
                       type: object
                     type: array
                 type: object
-              replicas:
-                minimum: 1
-                type: integer
               resources:
                 description: ResourceRequirements describes the compute resource requirements.
                 properties:
@@ -138,7 +135,11 @@ spec:
               storage:
                 properties:
                   size:
-                    type: string
+                    anyOf:
+                    - type: integer
+                    - type: string
+                    pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                    x-kubernetes-int-or-string: true
                 required:
                 - size
                 type: object
@@ -146,7 +147,6 @@ spec:
             - auth
             - image
             - imagePullPolicy
-            - replicas
             - resources
             - storage
             type: object

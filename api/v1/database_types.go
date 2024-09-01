@@ -19,11 +19,12 @@ package v1
 import (
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
 type DatabaseStorage struct {
-	Size string `json:"size"`
+	Size resource.Quantity `json:"size"`
 }
 
 type AhtiDatabaseIngressSpec struct {
@@ -39,12 +40,10 @@ type DatabaseSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired state of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	Image           string `json:"image"`
-	ImagePullPolicy string `json:"imagePullPolicy"`
-	// +kubebuilder:validation:Minimum=1
-	Replicas int             `json:"replicas"`
-	Auth     bool            `json:"auth"`
-	Storage  DatabaseStorage `json:"storage"`
+	Image           string          `json:"image"`
+	ImagePullPolicy string          `json:"imagePullPolicy"`
+	Auth            bool            `json:"auth"`
+	Storage         DatabaseStorage `json:"storage"`
 	// +optional
 	Ingress  *AhtiDatabaseIngressSpec    `json:"ingress,omitempty"`
 	Resource corev1.ResourceRequirements `json:"resources"`

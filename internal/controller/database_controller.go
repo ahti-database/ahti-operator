@@ -21,6 +21,7 @@ import (
 	"fmt"
 
 	libsqlv1 "github.com/ahti-database/operator/api/v1"
+	"github.com/ahti-database/operator/internal/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -107,7 +108,6 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		"Listing all database spec fields",
 		"Database.Image", fmt.Sprintf("%v", database.Spec.Image),
 		"Database.ImagePullPolicy", fmt.Sprintf("%v", database.Spec.ImagePullPolicy),
-		"Database.Replicas", fmt.Sprintf("%v", database.Spec.Replicas),
 		"Database.Auth", fmt.Sprintf("%v", database.Spec.Auth),
 		"Database.Storage", fmt.Sprintf("%v", database.Spec.Storage),
 		"Database.Ingress", fmt.Sprintf("%v", database.Spec.Ingress),
@@ -116,13 +116,21 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// https://github.com/operator-framework/operator-sdk/blob/master/testdata/go/v4/memcached-operator/internal/controller/memcached_controller.go
 	// create secret if not yet created
 
-	databaseAuthSecret, err := r.ReconcileSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: fmt.Sprintf("%v-auth-key", database.Name)}, database)
+	databaseAuthSecret, err := r.ReconcileSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: utils.GetAuthSecretName(database)}, database)
 	if err != nil {
-		log.Error(err, "Failed to reconcil database auth secret")
+		log.Error(err, "Failed to reconcile database auth secret")
 		return ctrl.Result{}, err
 	}
 	if databaseAuthSecret != nil {
 		log.Info(databaseAuthSecret.Name)
+	}
+	primaryStatefulSet, err := r.ReconcileStatefulSets(ctx, database)
+	if err != nil {
+		log.Error(err, "Failed to reconcile statefulset")
+		return ctrl.Result{}, err
+	}
+	if primaryStatefulSet != nil {
+		log.Info(fmt.Sprintf("%v", *primaryStatefulSet.Spec.Replicas))
 	}
 
 	// get secret jwt key if created already
@@ -141,7 +149,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	// The following implementation will update the status
 	changed := meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase,
 		Status: metav1.ConditionTrue, Reason: "Reconciling",
-		Message: fmt.Sprintf("Deployment for custom resource (%s) with %d replicas created successfully", database.Name, database.Spec.Replicas)})
+		Message: fmt.Sprintf("Deployment for custom resource (%s) created successfully", database.Name)})
 	if changed {
 		if err := r.Status().Update(ctx, database); err != nil {
 			if apierrors.IsConflict(err) {

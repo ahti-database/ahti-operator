@@ -2,6 +2,7 @@ package controller
 
 import (
 	"context"
+	"fmt"
 
 	libsqlv1 "github.com/ahti-database/operator/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -15,17 +16,12 @@ func (r *DatabaseReconciler) DeleteDatabasePVC(ctx context.Context, database *li
 	log := log.FromContext(ctx)
 	databasePVCList := &corev1.PersistentVolumeClaimList{}
 	pvcLabels := labels.NewSelector()
-	appNameRequirement, err := labels.NewRequirement("app", selection.Equals, []string{databaseAppName})
-	if err != nil {
-		log.Error(err, "error trying to select app labels")
-	}
 	controlledByRequirement, err := labels.NewRequirement(databaseLabel, selection.Equals, []string{database.Name})
 	if err != nil {
 		log.Error(err, "error trying to select app labels")
 		return err
 	}
 	pvcLabels.Add(
-		*appNameRequirement,
 		*controlledByRequirement,
 	)
 	if err := r.List(ctx, databasePVCList, &client.ListOptions{
@@ -34,7 +30,9 @@ func (r *DatabaseReconciler) DeleteDatabasePVC(ctx context.Context, database *li
 		log.Error(err, "pvc resources not found. Ignoring since object must be deleted")
 		return err
 	}
+	log.Info(fmt.Sprintf("%v", len(databasePVCList.Items)))
 	for _, databasePVC := range databasePVCList.Items {
+		log.Info("TEST")
 		if err := r.Delete(ctx, &databasePVC); err != nil {
 			log.Error(err, "pvc resources not found. Ignoring since object must be deleted")
 		}

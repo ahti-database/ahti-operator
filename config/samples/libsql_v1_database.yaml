@@ -9,7 +9,6 @@ metadata:
 spec:
   image: ghcr.io/tursodatabase/libsql-server:v0.24.21
   imagePullPolicy: Always
-  replicas: 3 # if only 1 replica then no need separate deployment for replicas
   auth: true
   storage:
     size: 1Gi

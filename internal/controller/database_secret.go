@@ -3,7 +3,6 @@ package controller
 import (
 	"context"
 	"encoding/base64"
-	"fmt"
 
 	libsqlv1 "github.com/ahti-database/operator/api/v1"
 	"github.com/ahti-database/operator/internal/utils"
@@ -70,7 +69,7 @@ func (r *DatabaseReconciler) ReconcileSecrets(
 
 func (r *DatabaseReconciler) DeleteDatabaseAuthSecret(ctx context.Context, database *libsqlv1.Database) error {
 	authSecret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: database.Namespace, Name: fmt.Sprintf("%v-auth-key", database.Name)}, authSecret); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{Namespace: database.Namespace, Name: utils.GetAuthSecretName(database)}, authSecret); err != nil {
 		return err
 	}
 	if err := r.Delete(ctx, authSecret); err != nil {

@@ -56,7 +56,7 @@ func (r *DatabaseReconciler) ReconcileFinalizer(ctx context.Context, database *l
 			// Perform all operations required before removing the finalizer and allow
 			// the Kubernetes API to remove the custom resource.
 
-			// r.doFinalizerOperationsForDatabase(ctx, database)
+			r.DoFinalizerOperationsForDatabase(ctx, database)
 
 			// If you add operations to the doFinalizerOperationsForDatabase method
 			// then you need to ensure that all worked fine before deleting and updating the Downgrade status
