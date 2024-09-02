@@ -114,37 +114,22 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		"Database.Resource", fmt.Sprintf("%v", database.Spec.Resource),
 	)
 	// https://github.com/operator-framework/operator-sdk/blob/master/testdata/go/v4/memcached-operator/internal/controller/memcached_controller.go
-	// create secret if not yet created
 
-	databaseAuthSecret, err := r.ReconcileSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: utils.GetAuthSecretName(database)}, database)
+	_, err = r.ReconcileSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: utils.GetAuthSecretName(database)}, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile database auth secret")
 		return ctrl.Result{}, err
 	}
-	if databaseAuthSecret != nil {
-		log.Info(databaseAuthSecret.Name)
-	}
-	primaryStatefulSet, err := r.ReconcileStatefulSets(ctx, database)
+	_, err = r.ReconcileStatefulSets(ctx, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile statefulset")
 		return ctrl.Result{}, err
 	}
-	if primaryStatefulSet != nil {
-		log.Info(fmt.Sprintf("%v", *primaryStatefulSet.Spec.Replicas))
+	_, _, err = r.ReconcileService(ctx, database)
+	if err != nil {
+		log.Error(err, "Failed to reconcile service")
+		return ctrl.Result{}, err
 	}
-
-	// get secret jwt key if created already
-	// upsert all statefulsets with the secret jwt reference from above
-	// upsert all services
-	// if database.Spec.Ingress != nil {
-	// 	// upsert ingress
-	// 	log.Info(
-	// 		"Listing all database spec ingress fields",
-	// 		"Database.Ingress.IngressClassName", fmt.Sprintf("%v", database.Spec.Ingress.IngressClassName),
-	// 		"Database.Ingress.Host", fmt.Sprintf("%v", database.Spec.Ingress.Host),
-	// 		"Database.Ingress.TLS", fmt.Sprintf("%v", database.Spec.Ingress.TLS),
-	// 	)
-	// }
 
 	// The following implementation will update the status
 	changed := meta.SetStatusCondition(&database.Status.Conditions, metav1.Condition{Type: typeAvailableDatabase,
