@@ -1,0 +1,111 @@
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: sample-database-replica
+  namespace: default
+  labels:
+    ahti.database.io/managed-by: sample-database
+    node: replica
+spec:
+  ports:
+  - port: 8080
+    targetPort: 8080
+    protocol: TCP
+    name: replica-http
+  clusterIP: None
+  selector:
+    ahti.database.io/managed-by: sample-database
+    node: replica
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  labels:
+    ahti.database.io/managed-by: sample-database
+    node: replica
+  name: sample-database-replica
+  namespace: default
+spec:
+  selector:
+    matchLabels:
+      ahti.database.io/managed-by: sample-database
+      node: replica
+  serviceName: "sample-database-replica"
+  replicas: 2 # by default is 1
+  template:
+    metadata:
+      labels:
+        ahti.database.io/managed-by: sample-database
+        node: replica
+    spec:
+      containers:
+        - image: ghcr.io/tursodatabase/libsql-server:v0.24.21
+          name: libsql-server
+          resources:
+            requests:
+              memory: "200Mi"
+              cpu: "200m"
+            limits:
+              memory: "200Mi"
+              cpu: "200m"
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          readinessProbe:
+            httpGet:
+              path: /health
+              port: 8080
+          ports:
+            - containerPort: 8080
+              protocol: TCP
+              name: replica-http
+          env:
+            - name: SQLD_NODE
+              value: replica
+            - name: SQLD_PRIMARY_URL
+              value: http://sample-database-primary-0.sample-database-primary:5001
+            - name: SQLD_AUTH_JWT_KEY
+              valueFrom:
+                secretKeyRef:
+                  name: sample-database-auth-key
+                  key: PUBLIC_KEY
+          volumeMounts:
+            - name: sample-database-pvc
+              mountPath: /var/lib/sqld
+  volumeClaimTemplates:
+    - metadata:
+        name: sample-database-pvc
+        labels:
+          ahti.database.io/managed-by: sample-database
+          node: replica
+      spec:
+        accessModes:
+          - ReadWriteOnce
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: sample-database-ingress
+spec:
+  ingressClassName: nginx
+  tls:
+    - hosts:
+        - ahti.database.com
+      secretName: secret-tls
+  rules:
+    - http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: sample-database
+                port:
+                  number: 8080
+
+

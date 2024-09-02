@@ -13,19 +13,23 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
-	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (r *DatabaseReconciler) ReconcileStatefulSets(ctx context.Context, database *libsqlv1.Database) (*appsv1.StatefulSet, error) {
-	log := log.FromContext(ctx)
 	primaryStatefulSet := &appsv1.StatefulSet{}
-	primaryStatefulSetName := types.NamespacedName{
-		Name:      fmt.Sprintf("%v-primary", database.Name),
-		Namespace: database.Namespace,
-	}
-	if err := r.Get(ctx, primaryStatefulSetName, primaryStatefulSet); err != nil {
+	if err := r.Get(
+		ctx,
+		types.NamespacedName{
+			Name:      database.Name,
+			Namespace: database.Namespace,
+		},
+		primaryStatefulSet,
+	); err != nil {
 		if apierrors.IsNotFound(err) {
-			log.Info("Creating primary statefulset")
+			r.Recorder.Event(database, utils.EventNormal, "Creating",
+				fmt.Sprintf("Primary StatefulSet %s is being created in the namespace %s",
+					database.Name,
+					database.Namespace))
 			primaryStatefulSet = r.ConstructPrimaryStatefulSet(database)
 			if err := r.Create(ctx, primaryStatefulSet); err != nil {
 				return nil, err
@@ -42,7 +46,7 @@ func (r *DatabaseReconciler) ReconcileStatefulSets(ctx context.Context, database
 func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Database) *appsv1.StatefulSet {
 	primaryStatefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
-			Name:      fmt.Sprintf("%v-primary", database.Name),
+			Name:      database.Name,
 			Namespace: database.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
@@ -64,7 +68,7 @@ func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Data
 					"node":        "primary",
 				},
 			},
-			ServiceName: fmt.Sprintf("%v-primary", database.Name),
+			ServiceName: utils.GetDatabaseServiceName(database, true),
 			Replicas:    ptr.To(int32(1)),
 			Template: corev1.PodTemplateSpec{
 				ObjectMeta: metav1.ObjectMeta{
@@ -120,7 +124,7 @@ func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Data
 							},
 							VolumeMounts: []corev1.VolumeMount{
 								{
-									Name:      fmt.Sprintf("%v-pvc", database.Name),
+									Name:      utils.GetDatabasePVCName(database),
 									MountPath: "/var/lib/sqld",
 								},
 							},
@@ -131,7 +135,7 @@ func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Data
 			VolumeClaimTemplates: []corev1.PersistentVolumeClaim{
 				{
 					ObjectMeta: metav1.ObjectMeta{
-						Name: fmt.Sprintf("%v-pvc", database.Name),
+						Name: utils.GetDatabasePVCName(database),
 						Labels: map[string]string{
 							databaseLabel: database.Name,
 							"node":        "primary",

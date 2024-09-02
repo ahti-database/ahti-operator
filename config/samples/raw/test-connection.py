@@ -1,6 +1,6 @@
 import libsql_experimental as libsql
 
-remote_db_url = "http://localhost:8082"
+remote_db_url = input("remote url: ")
 db_auth_token = input("token: ")
 
 conn = libsql.connect("local.db", sync_url=remote_db_url, auth_token=db_auth_token)
