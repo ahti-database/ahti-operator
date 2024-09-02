@@ -8,10 +8,17 @@ metadata:
   namespace: default
 spec:
   image: ghcr.io/tursodatabase/libsql-server:v0.24.21
+  # optional default IfNotPresent
   imagePullPolicy: Always
+  # optional
+  # ImagePullSecrets: []
   auth: true
   storage:
     size: 1Gi
+  env:
+    - name: HELLO
+      value: world
+  # optional
   resources:
     requests:
       memory: "200Mi"
@@ -19,6 +26,19 @@ spec:
     limits:
       memory: "200Mi"
       cpu: "200m"
+  # optional
+  # NodeSelector:
+  # optional
+  # ServiceAccountName:
+  # optional
+  # AutomountServiceAccountToken:
+  # optional
+  # Affinity:
+  # optional
+  # SchedulerName:
+  # optional
+  # Tolerations: []
+  # optional
   ingress:
     ingressClassName: nginx
     host: ahti.database.com

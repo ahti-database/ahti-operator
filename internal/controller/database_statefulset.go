@@ -13,37 +13,42 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
 func (r *DatabaseReconciler) ReconcileStatefulSets(ctx context.Context, database *libsqlv1.Database) (*appsv1.StatefulSet, error) {
-	primaryStatefulSet := &appsv1.StatefulSet{}
+	found := &appsv1.StatefulSet{}
+	primaryStatefulSet := r.ConstructPrimaryStatefulSet(ctx, database)
 	if err := r.Get(
 		ctx,
 		types.NamespacedName{
 			Name:      database.Name,
 			Namespace: database.Namespace,
 		},
-		primaryStatefulSet,
+		found,
 	); err != nil {
 		if apierrors.IsNotFound(err) {
-			r.Recorder.Event(database, utils.EventNormal, "Creating",
-				fmt.Sprintf("Primary StatefulSet %s is being created in the namespace %s",
-					database.Name,
-					database.Namespace))
-			primaryStatefulSet = r.ConstructPrimaryStatefulSet(database)
+
 			if err := r.Create(ctx, primaryStatefulSet); err != nil {
 				return nil, err
 			}
+			r.Recorder.Event(database, utils.EventNormal, "SuccessfulCreate",
+				fmt.Sprintf("create StatefulSet %s is being created in the Namespace %s success",
+					database.Name,
+					database.Namespace))
 		} else {
 			return nil, err
 		}
 	}
-	// TODO: patch the statefulset
-
+	// patch the statefulset
+	if err := r.Update(ctx, primaryStatefulSet); err != nil {
+		return nil, err
+	}
 	return primaryStatefulSet, nil
 }
 
-func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Database) *appsv1.StatefulSet {
+func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(ctx context.Context, database *libsqlv1.Database) *appsv1.StatefulSet {
+	log := log.FromContext(ctx)
 	primaryStatefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      database.Name,
@@ -78,6 +83,13 @@ func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Data
 					},
 				},
 				Spec: corev1.PodSpec{
+					NodeSelector:                 database.Spec.NodeSelector,
+					ServiceAccountName:           database.Spec.ServiceAccountName,
+					AutomountServiceAccountToken: database.Spec.AutomountServiceAccountToken,
+					ImagePullSecrets:             database.Spec.ImagePullSecrets,
+					Affinity:                     database.Spec.Affinity,
+					SchedulerName:                database.Spec.SchedulerName,
+					Tolerations:                  database.Spec.Tolerations,
 					Containers: []corev1.Container{
 						{
 							Image:           database.Spec.Image,
@@ -128,6 +140,7 @@ func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Data
 									MountPath: "/var/lib/sqld",
 								},
 							},
+							// TODO: Add nodeselector, ServiceAccountName, etc.
 						},
 					},
 				},
@@ -167,6 +180,13 @@ func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(database *libsqlv1.Data
 				},
 			},
 		})
+	}
+	for _, env := range database.Spec.Env {
+		if !(env.Name == "SQLD_NODE" || env.Name == "SQLD_AUTH_JWT_KEY") {
+			primaryStatefulSet.Spec.Template.Spec.Containers[0].Env = append(primaryStatefulSet.Spec.Template.Spec.Containers[0].Env, env)
+		} else {
+			log.Info(fmt.Sprintf("overwriting provided env %v with default generated values", env.Name))
+		}
 	}
 	return primaryStatefulSet
 }
