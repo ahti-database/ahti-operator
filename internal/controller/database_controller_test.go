@@ -18,11 +18,16 @@ package controller
 
 import (
 	"context"
+	"fmt"
+	"time"
 
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
+	appsv1 "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/api/errors"
+	"k8s.io/apimachinery/pkg/api/resource"
 	"k8s.io/apimachinery/pkg/types"
+	"k8s.io/utils/ptr"
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
@@ -32,13 +37,13 @@ import (
 
 var _ = Describe("Database Controller", func() {
 	Context("When reconciling a resource", func() {
-		const resourceName = "test-resource"
+		const databaseName = "test-sample-database"
 
 		ctx := context.Background()
 
 		typeNamespacedName := types.NamespacedName{
-			Name:      resourceName,
-			Namespace: "default", // TODO(user):Modify as needed
+			Name:      databaseName,
+			Namespace: "default",
 		}
 		database := &libsqlv1.Database{}
 
@@ -46,39 +51,81 @@ var _ = Describe("Database Controller", func() {
 			By("creating the custom resource for the Kind Database")
 			err := k8sClient.Get(ctx, typeNamespacedName, database)
 			if err != nil && errors.IsNotFound(err) {
-				resource := &libsqlv1.Database{
+				database = &libsqlv1.Database{
 					ObjectMeta: metav1.ObjectMeta{
-						Name:      resourceName,
+						Name:      databaseName,
 						Namespace: "default",
 					},
-					// TODO(user): Specify other spec details if needed.
+					TypeMeta: metav1.TypeMeta{
+						APIVersion: databaseAPIVersion,
+						Kind:       databaseKind,
+					},
+					Spec: libsqlv1.DatabaseSpec{
+						Image:           "ghcr.io/tursodatabase/libsql-server:v0.24.21",
+						ImagePullPolicy: "Always",
+						Auth:            true,
+						Storage:         libsqlv1.DatabaseStorage{Size: *resource.NewMilliQuantity(int64(1000), resource.BinarySI)},
+						Ingress: &libsqlv1.AhtiDatabaseIngressSpec{
+							IngressClassName: ptr.To("nginx"),
+							Host:             "database.ahti.io",
+						},
+					},
 				}
-				Expect(k8sClient.Create(ctx, resource)).To(Succeed())
+				Expect(k8sClient.Create(ctx, database)).To(Succeed())
 			}
 		})
 
 		AfterEach(func() {
-			// TODO(user): Cleanup logic after each test, like removing the resource instance.
-			resource := &libsqlv1.Database{}
-			err := k8sClient.Get(ctx, typeNamespacedName, resource)
+			database := &libsqlv1.Database{}
+			err := k8sClient.Get(ctx, typeNamespacedName, database)
 			Expect(err).NotTo(HaveOccurred())
 
 			By("Cleanup the specific resource instance Database")
-			Expect(k8sClient.Delete(ctx, resource)).To(Succeed())
+			Expect(k8sClient.Delete(ctx, database)).To(Succeed())
 		})
-		It("should successfully reconcile the resource", func() {
+
+		It("should successfully reconcile the Database resource", func() {
+			By("Checking if the custom resource was successfully created")
+			Eventually(func() error {
+				found := &libsqlv1.Database{}
+				return k8sClient.Get(ctx, typeNamespacedName, found)
+			}, time.Minute, time.Second).Should(Succeed())
+
 			By("Reconciling the created resource")
 			controllerReconciler := &DatabaseReconciler{
-				Client: k8sClient,
-				Scheme: k8sClient.Scheme(),
+				Client:   k8sClient,
+				Scheme:   k8sClient.Scheme(),
+				Recorder: MockEventRecorder{},
 			}
 
 			_, err := controllerReconciler.Reconcile(ctx, reconcile.Request{
 				NamespacedName: typeNamespacedName,
 			})
 			Expect(err).NotTo(HaveOccurred())
-			// TODO(user): Add more specific assertions depending on your controller's reconciliation logic.
-			// Example: If you expect a certain status condition after reconciliation, verify it here.
+
+			By("Checking if Deployment was successfully created in the reconciliation")
+			Eventually(func() error {
+				found := &appsv1.StatefulSet{}
+				return k8sClient.Get(ctx, typeNamespacedName, found)
+			}, time.Minute, time.Second).Should(Succeed())
+
+			By("Checking the latest Status Condition added to the Memcached instance")
+			Eventually(func() error {
+				if len(database.Status.Conditions) != 0 {
+					latestStatusCondition := database.Status.Conditions[len(database.Status.Conditions)-1]
+					expectedLatestStatusCondition := metav1.Condition{
+						Type:   typeAvailableDatabase,
+						Status: metav1.ConditionTrue,
+						Reason: "Reconciling",
+						Message: fmt.Sprintf(
+							"Deployment for custom resource (%s) created successfully", database.Name),
+					}
+					if latestStatusCondition != expectedLatestStatusCondition {
+						return fmt.Errorf("The latest status condition added to the Database instance is not as expected")
+					}
+				}
+				return nil
+			}, time.Minute, time.Second).Should(Succeed())
 		})
 	})
 })

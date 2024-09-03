@@ -21,7 +21,6 @@ import (
 	"fmt"
 
 	libsqlv1 "github.com/ahti-database/operator/api/v1"
-	"github.com/ahti-database/operator/internal/utils"
 	appsv1 "k8s.io/api/apps/v1"
 	corev1 "k8s.io/api/core/v1"
 	networkingv1 "k8s.io/api/networking/v1"
@@ -29,7 +28,6 @@ import (
 	"k8s.io/apimachinery/pkg/api/meta"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/runtime"
-	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/client-go/tools/record"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -38,9 +36,11 @@ import (
 )
 
 const (
-	databaseFinalizer = "libsql.ahti.io/finalizer"
-	databaseLabel     = "ahti.database.io/managed-by"
-	databaseAppName   = "ahti-database"
+	databaseAPIVersion string = "libsql.ahti.io/v1"
+	databaseKind       string = "Database"
+	databaseFinalizer  string = "libsql.ahti.io/finalizer"
+	databaseLabel      string = "ahti.database.io/managed-by"
+	databaseAppName    string = "ahti-database"
 )
 
 // Definitions to manage status conditions
@@ -104,7 +104,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	_, err = r.ReconcileDatabaseSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: utils.GetAuthSecretName(database)}, database)
+	_, err = r.ReconcileDatabaseSecrets(ctx, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile database auth secret")
 		return ctrl.Result{}, err

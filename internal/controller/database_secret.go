@@ -16,14 +16,13 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func (r *DatabaseReconciler) ReconcileDatabaseSecrets(
-	ctx context.Context,
-	authSecretName types.NamespacedName,
-	database *libsqlv1.Database,
-) (*corev1.Secret, error) {
+func (r *DatabaseReconciler) ReconcileDatabaseSecrets(ctx context.Context, database *libsqlv1.Database) (*corev1.Secret, error) {
 	log := log.FromContext(ctx)
 	authSecret := &corev1.Secret{}
-	if err := r.Get(ctx, authSecretName, authSecret); err != nil {
+	if err := r.Get(ctx, types.NamespacedName{
+		Name:      utils.GetAuthSecretName(database),
+		Namespace: database.Namespace,
+	}, authSecret); err != nil {
 		if database.Spec.Auth && apierrors.IsNotFound(err) {
 			log.Info("Creating Auth Secret")
 			publicKey, privateKey, err := utils.GenerateAsymmetricKeys()
@@ -32,12 +31,12 @@ func (r *DatabaseReconciler) ReconcileDatabaseSecrets(
 			}
 			authSecret = &corev1.Secret{
 				ObjectMeta: metav1.ObjectMeta{
-					Name:      authSecretName.Name,
-					Namespace: authSecretName.Namespace,
+					Name:      utils.GetAuthSecretName(database),
+					Namespace: database.Namespace,
 					OwnerReferences: []metav1.OwnerReference{
 						{
-							APIVersion: database.APIVersion,
-							Kind:       database.Kind,
+							APIVersion: databaseAPIVersion,
+							Kind:       databaseKind,
 							Name:       database.Name,
 							UID:        database.UID,
 						},

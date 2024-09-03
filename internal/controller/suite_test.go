@@ -25,6 +25,7 @@ import (
 	. "github.com/onsi/ginkgo/v2"
 	. "github.com/onsi/gomega"
 
+	kruntime "k8s.io/apimachinery/pkg/runtime"
 	"k8s.io/client-go/kubernetes/scheme"
 	"k8s.io/client-go/rest"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -42,6 +43,29 @@ import (
 var cfg *rest.Config
 var k8sClient client.Client
 var testEnv *envtest.Environment
+
+type MockEventRecorder struct {
+	Events []string
+}
+
+func (m MockEventRecorder) Event(object kruntime.Object, eventtype, reason, message string) {
+	m.Events = append(m.Events, fmt.Sprintf("Event: %s, Reason: %s, Message: %s", eventtype, reason, message))
+	fmt.Println(m.Events)
+}
+
+func (m MockEventRecorder) Eventf(object kruntime.Object, eventtype, reason, messageFmt string, args ...interface{}) {
+	m.Events = append(m.Events, fmt.Sprintf("Eventf: %s, Reason: %s, Message: %s", eventtype, reason, fmt.Sprintf(messageFmt, args...)))
+	fmt.Println(m.Events)
+}
+
+func (m MockEventRecorder) AnnotatedEventf(object kruntime.Object, annotations map[string]string, eventtype, reason, messageFmt string, args ...interface{}) {
+	m.Events = append(m.Events, fmt.Sprintf("AnnotatedEventf: %s, Reason: %s, Message: %s", eventtype, reason, fmt.Sprintf(messageFmt, args...)))
+	fmt.Println(m.Events)
+}
+
+func (m MockEventRecorder) GetEvent() []string {
+	return m.Events
+}
 
 func TestControllers(t *testing.T) {
 	RegisterFailHandler(Fail)

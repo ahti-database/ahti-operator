@@ -15,9 +15,6 @@ spec:
   auth: false
   storage:
     size: 1Gi
-  env:
-    - name: HELLO
-      value: world
   # optional
   resources:
     requests:

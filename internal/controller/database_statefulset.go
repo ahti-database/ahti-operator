@@ -57,8 +57,8 @@ func (r *DatabaseReconciler) ConstructDatabaseStatefulSet(ctx context.Context, d
 			Namespace: database.Namespace,
 			OwnerReferences: []metav1.OwnerReference{
 				{
-					APIVersion: database.APIVersion,
-					Kind:       database.Kind,
+					APIVersion: databaseAPIVersion,
+					Kind:       databaseKind,
 					Name:       database.Name,
 					UID:        database.UID,
 				},
