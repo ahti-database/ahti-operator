@@ -153,5 +153,13 @@ func (r *DatabaseReconciler) SetupWithManager(mgr ctrl.Manager) error {
 			&corev1.Secret{},
 			handler.EnqueueRequestsFromMapFunc(r.MapAuthSecretsToReconcile),
 		).
+		Watches(
+			&appsv1.StatefulSet{},
+			handler.EnqueueRequestsFromMapFunc(r.MapDatabaseStatefulSetsToReconcile),
+		).
+		Watches(
+			&networkingv1.Ingress{},
+			handler.EnqueueRequestsFromMapFunc(r.MapDatabaseIngressToReconcile),
+		).
 		Complete(r)
 }

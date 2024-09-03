@@ -13,7 +13,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/apimachinery/pkg/util/intstr"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func (r *DatabaseReconciler) ReconcileDatabaseStatefulSets(ctx context.Context, database *libsqlv1.Database) (*appsv1.StatefulSet, error) {
@@ -187,4 +190,24 @@ func (r *DatabaseReconciler) ConstructDatabaseStatefulSet(ctx context.Context, d
 		}
 	}
 	return primaryStatefulSet
+}
+
+func (r *DatabaseReconciler) MapDatabaseStatefulSetsToReconcile(ctx context.Context, object client.Object) []reconcile.Request {
+	statefulSet := object.(*appsv1.StatefulSet)
+	gvk, err := apiutil.GVKForObject(&libsqlv1.Database{}, r.Scheme)
+	if err != nil {
+		return nil
+	}
+	if len(statefulSet.ObjectMeta.OwnerReferences) > 0 {
+		for _, ownerReference := range statefulSet.ObjectMeta.OwnerReferences {
+			if ownerReference.APIVersion == gvk.GroupVersion().String() {
+				return []reconcile.Request{
+					{
+						NamespacedName: types.NamespacedName{Namespace: statefulSet.Namespace, Name: ownerReference.Name},
+					},
+				}
+			}
+		}
+	}
+	return nil
 }

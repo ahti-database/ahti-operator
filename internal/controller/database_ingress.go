@@ -11,6 +11,9 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 	"k8s.io/apimachinery/pkg/types"
 	"k8s.io/utils/ptr"
+	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/client/apiutil"
+	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
 func (r *DatabaseReconciler) ReconcileDatabaseIngress(ctx context.Context, database *libsqlv1.Database) (*networkingv1.Ingress, error) {
@@ -98,4 +101,24 @@ func (r *DatabaseReconciler) ConstructDatabaseIngress(ctx context.Context, datab
 		},
 	}
 	return ingress
+}
+
+func (r *DatabaseReconciler) MapDatabaseIngressToReconcile(ctx context.Context, object client.Object) []reconcile.Request {
+	ingress := object.(*networkingv1.Ingress)
+	gvk, err := apiutil.GVKForObject(&libsqlv1.Database{}, r.Scheme)
+	if err != nil {
+		return nil
+	}
+	if len(ingress.ObjectMeta.OwnerReferences) > 0 {
+		for _, ownerReference := range ingress.ObjectMeta.OwnerReferences {
+			if ownerReference.APIVersion == gvk.GroupVersion().String() {
+				return []reconcile.Request{
+					{
+						NamespacedName: types.NamespacedName{Namespace: ingress.Namespace, Name: ownerReference.Name},
+					},
+				}
+			}
+		}
+	}
+	return nil
 }
