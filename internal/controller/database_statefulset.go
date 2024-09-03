@@ -16,9 +16,9 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/log"
 )
 
-func (r *DatabaseReconciler) ReconcileStatefulSets(ctx context.Context, database *libsqlv1.Database) (*appsv1.StatefulSet, error) {
+func (r *DatabaseReconciler) ReconcileDatabaseStatefulSets(ctx context.Context, database *libsqlv1.Database) (*appsv1.StatefulSet, error) {
 	found := &appsv1.StatefulSet{}
-	primaryStatefulSet := r.ConstructPrimaryStatefulSet(ctx, database)
+	primaryStatefulSet := r.ConstructDatabaseStatefulSet(ctx, database)
 	if err := r.Get(
 		ctx,
 		types.NamespacedName{
@@ -46,7 +46,7 @@ func (r *DatabaseReconciler) ReconcileStatefulSets(ctx context.Context, database
 	return primaryStatefulSet, nil
 }
 
-func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(ctx context.Context, database *libsqlv1.Database) *appsv1.StatefulSet {
+func (r *DatabaseReconciler) ConstructDatabaseStatefulSet(ctx context.Context, database *libsqlv1.Database) *appsv1.StatefulSet {
 	log := log.FromContext(ctx)
 	primaryStatefulSet := &appsv1.StatefulSet{
 		ObjectMeta: metav1.ObjectMeta{

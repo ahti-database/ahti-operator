@@ -96,7 +96,7 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		}
 	}
 
-	requeue, err := r.ReconcileFinalizer(ctx, database)
+	requeue, err := r.ReconcileDatabaseFinalizer(ctx, database)
 	if err != nil {
 		return ctrl.Result{}, err
 	}
@@ -104,22 +104,22 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	_, err = r.ReconcileSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: utils.GetAuthSecretName(database)}, database)
+	_, err = r.ReconcileDatabaseSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: utils.GetAuthSecretName(database)}, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile database auth secret")
 		return ctrl.Result{}, err
 	}
-	_, err = r.ReconcileStatefulSets(ctx, database)
+	_, err = r.ReconcileDatabaseStatefulSets(ctx, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile statefulset")
 		return ctrl.Result{}, err
 	}
-	_, _, err = r.ReconcileService(ctx, database)
+	_, _, err = r.ReconcileDatabaseService(ctx, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile service")
 		return ctrl.Result{}, err
 	}
-	_, err = r.ReconcileIngress(ctx, database)
+	_, err = r.ReconcileDatabaseIngress(ctx, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile ingress")
 		return ctrl.Result{}, err

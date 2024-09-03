@@ -14,7 +14,7 @@ import (
 )
 
 // finalizeDatabase will perform the required operations before delete the CR.
-func (r *DatabaseReconciler) ReconcileFinalizer(ctx context.Context, database *libsqlv1.Database) (requeue bool, err error) {
+func (r *DatabaseReconciler) ReconcileDatabaseFinalizer(ctx context.Context, database *libsqlv1.Database) (requeue bool, err error) {
 	log := log.FromContext(ctx)
 	// Let's add a finalizer. Then, we can define some operations which should
 	// occur before the custom resource is deleted.

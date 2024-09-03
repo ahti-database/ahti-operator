@@ -13,7 +13,7 @@ import (
 	"k8s.io/utils/ptr"
 )
 
-func (r *DatabaseReconciler) ReconcileIngress(ctx context.Context, database *libsqlv1.Database) (*networkingv1.Ingress, error) {
+func (r *DatabaseReconciler) ReconcileDatabaseIngress(ctx context.Context, database *libsqlv1.Database) (*networkingv1.Ingress, error) {
 	found := &networkingv1.Ingress{}
 	ingress := r.ConstructDatabaseIngress(ctx, database)
 	if err := r.Get(

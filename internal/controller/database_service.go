@@ -13,21 +13,21 @@ import (
 	"k8s.io/apimachinery/pkg/util/intstr"
 )
 
-func (r *DatabaseReconciler) ReconcileService(ctx context.Context, database *libsqlv1.Database) (reconciledHeadlessService *corev1.Service, reconciledService *corev1.Service, reconcileErr error) {
-	headlessService, err := r.reconcileService(ctx, database, true)
+func (r *DatabaseReconciler) ReconcileDatabaseService(ctx context.Context, database *libsqlv1.Database) (reconciledHeadlessService *corev1.Service, reconciledService *corev1.Service, reconcileErr error) {
+	headlessService, err := r.reconcileDatabaseService(ctx, database, true)
 	if err != nil {
 		return nil, nil, err
 	}
-	service, err := r.reconcileService(ctx, database, false)
+	service, err := r.reconcileDatabaseService(ctx, database, false)
 	if err != nil {
 		return headlessService, nil, err
 	}
 	return headlessService, service, nil
 }
 
-func (r *DatabaseReconciler) reconcileService(ctx context.Context, database *libsqlv1.Database, headless bool) (*corev1.Service, error) {
+func (r *DatabaseReconciler) reconcileDatabaseService(ctx context.Context, database *libsqlv1.Database, headless bool) (*corev1.Service, error) {
 	found := &corev1.Service{}
-	service := r.ConstructService(ctx, database, headless)
+	service := r.ConstructDatabaseService(ctx, database, headless)
 	if err := r.Get(
 		ctx,
 		types.NamespacedName{
@@ -55,7 +55,7 @@ func (r *DatabaseReconciler) reconcileService(ctx context.Context, database *lib
 	return service, nil
 }
 
-func (r *DatabaseReconciler) ConstructService(ctx context.Context, database *libsqlv1.Database, headless bool) *corev1.Service {
+func (r *DatabaseReconciler) ConstructDatabaseService(ctx context.Context, database *libsqlv1.Database, headless bool) *corev1.Service {
 	service := &corev1.Service{
 		ObjectMeta: metav1.ObjectMeta{
 			Name:      utils.GetDatabaseServiceName(database, headless),

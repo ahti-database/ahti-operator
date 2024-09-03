@@ -16,7 +16,7 @@ import (
 	"sigs.k8s.io/controller-runtime/pkg/reconcile"
 )
 
-func (r *DatabaseReconciler) ReconcileSecrets(
+func (r *DatabaseReconciler) ReconcileDatabaseSecrets(
 	ctx context.Context,
 	authSecretName types.NamespacedName,
 	database *libsqlv1.Database,
@@ -65,17 +65,6 @@ func (r *DatabaseReconciler) ReconcileSecrets(
 		return nil, nil
 	}
 	return authSecret, nil
-}
-
-func (r *DatabaseReconciler) DeleteDatabaseAuthSecret(ctx context.Context, database *libsqlv1.Database) error {
-	authSecret := &corev1.Secret{}
-	if err := r.Get(ctx, types.NamespacedName{Namespace: database.Namespace, Name: utils.GetAuthSecretName(database)}, authSecret); err != nil {
-		return err
-	}
-	if err := r.Delete(ctx, authSecret); err != nil {
-		return err
-	}
-	return nil
 }
 
 func (r *DatabaseReconciler) MapAuthSecretsToReconcile(ctx context.Context, object client.Object) []reconcile.Request {
