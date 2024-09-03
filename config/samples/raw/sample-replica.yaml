@@ -95,10 +95,11 @@ spec:
   ingressClassName: nginx
   tls:
     - hosts:
-        - ahti.database.com
+        - ahti.database.io
       secretName: secret-tls
   rules:
-    - http:
+    - host: "ahti.database.io"
+      http:
         paths:
           - path: /
             pathType: Prefix

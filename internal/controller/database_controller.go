@@ -104,17 +104,6 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 		return ctrl.Result{Requeue: true}, nil
 	}
 
-	log.Info(
-		"Listing all database spec fields",
-		"Database.Image", fmt.Sprintf("%v", database.Spec.Image),
-		"Database.ImagePullPolicy", fmt.Sprintf("%v", database.Spec.ImagePullPolicy),
-		"Database.Auth", fmt.Sprintf("%v", database.Spec.Auth),
-		"Database.Storage", fmt.Sprintf("%v", database.Spec.Storage),
-		"Database.Ingress", fmt.Sprintf("%v", database.Spec.Ingress),
-		"Database.Resource", fmt.Sprintf("%v", database.Spec.Resource),
-	)
-	// https://github.com/operator-framework/operator-sdk/blob/master/testdata/go/v4/memcached-operator/internal/controller/memcached_controller.go
-
 	_, err = r.ReconcileSecrets(ctx, types.NamespacedName{Namespace: req.Namespace, Name: utils.GetAuthSecretName(database)}, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile database auth secret")
@@ -128,6 +117,11 @@ func (r *DatabaseReconciler) Reconcile(ctx context.Context, req ctrl.Request) (c
 	_, _, err = r.ReconcileService(ctx, database)
 	if err != nil {
 		log.Error(err, "Failed to reconcile service")
+		return ctrl.Result{}, err
+	}
+	_, err = r.ReconcileIngress(ctx, database)
+	if err != nil {
+		log.Error(err, "Failed to reconcile ingress")
 		return ctrl.Result{}, err
 	}
 

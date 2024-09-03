@@ -28,7 +28,6 @@ func (r *DatabaseReconciler) ReconcileStatefulSets(ctx context.Context, database
 		found,
 	); err != nil {
 		if apierrors.IsNotFound(err) {
-
 			if err := r.Create(ctx, primaryStatefulSet); err != nil {
 				return nil, err
 			}
@@ -140,7 +139,6 @@ func (r *DatabaseReconciler) ConstructPrimaryStatefulSet(ctx context.Context, da
 									MountPath: "/var/lib/sqld",
 								},
 							},
-							// TODO: Add nodeselector, ServiceAccountName, etc.
 						},
 					},
 				},

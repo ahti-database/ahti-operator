@@ -2,7 +2,6 @@ package controller
 
 import (
 	"context"
-	"fmt"
 
 	libsqlv1 "github.com/ahti-database/operator/api/v1"
 	corev1 "k8s.io/api/core/v1"
@@ -30,9 +29,7 @@ func (r *DatabaseReconciler) DeleteDatabasePVC(ctx context.Context, database *li
 		log.Error(err, "pvc resources not found. Ignoring since object must be deleted")
 		return err
 	}
-	log.Info(fmt.Sprintf("%v", len(databasePVCList.Items)))
 	for _, databasePVC := range databasePVCList.Items {
-		log.Info("TEST")
 		if err := r.Delete(ctx, &databasePVC); err != nil {
 			log.Error(err, "pvc resources not found. Ignoring since object must be deleted")
 		}

@@ -926,7 +926,7 @@ spec:
                     type: object
                 type: object
               auth:
-                default: "true"
+                default: true
                 type: boolean
               automountServiceAccountToken:
                 description: AutomountServiceAccountToken indicates whether a service

@@ -12,7 +12,7 @@ spec:
   imagePullPolicy: Always
   # optional
   # ImagePullSecrets: []
-  auth: true
+  auth: false
   storage:
     size: 1Gi
   env:
@@ -41,8 +41,8 @@ spec:
   # optional
   ingress:
     ingressClassName: nginx
-    host: ahti.database.com
-    tls:
-    - hosts:
-        - ahti.database.com
-      secretName: secret-tls
+    host: ahti.database.io
+    # tls:
+    # - hosts:
+    #     - ahti.database.io
+    #   secretName: secret-tls

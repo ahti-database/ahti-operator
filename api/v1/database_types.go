@@ -44,7 +44,7 @@ type DatabaseSpec struct {
 	// +kubebuilder:default="IfNotPresent"
 	// +optional
 	ImagePullPolicy string `json:"imagePullPolicy"`
-	// +kubebuilder:default="true"
+	// +kubebuilder:default=true
 	// +optional
 	Auth    bool            `json:"auth"`
 	Storage DatabaseStorage `json:"storage"`

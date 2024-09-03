@@ -25,3 +25,7 @@ func GetDatabaseServiceName(database *libsqlv1.Database, headless bool) string {
 	}
 	return fmt.Sprintf("%v-svc", database.Name)
 }
+
+func GetDatabaseIngressName(database *libsqlv1.Database) string {
+	return fmt.Sprintf("%v-ingress", database.Name)
+}
