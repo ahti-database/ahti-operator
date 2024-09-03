@@ -18,7 +18,7 @@ import (
 
 func (r *DatabaseReconciler) ReconcileDatabaseIngress(ctx context.Context, database *libsqlv1.Database) (*networkingv1.Ingress, error) {
 	found := &networkingv1.Ingress{}
-	ingress := r.ConstructDatabaseIngress(ctx, database)
+	ingress := &networkingv1.Ingress{}
 	if err := r.Get(
 		ctx,
 		types.NamespacedName{
@@ -28,6 +28,7 @@ func (r *DatabaseReconciler) ReconcileDatabaseIngress(ctx context.Context, datab
 		found,
 	); err != nil {
 		if apierrors.IsNotFound(err) && database.Spec.Ingress != nil {
+			ingress = r.ConstructDatabaseIngress(ctx, database)
 			if err := r.Create(ctx, ingress); err != nil {
 				return nil, err
 			}
@@ -43,12 +44,13 @@ func (r *DatabaseReconciler) ReconcileDatabaseIngress(ctx context.Context, datab
 	}
 	if database.Spec.Ingress == nil {
 		// delete ingress if database does not need it
-		if err := r.Delete(ctx, ingress); err != nil {
+		if err := r.Delete(ctx, found); err != nil {
 			return nil, err
 		}
 		return nil, nil
 	} else {
 		// patch the statefulset
+		ingress = r.ConstructDatabaseIngress(ctx, database)
 		if err := r.Update(ctx, ingress); err != nil {
 			return nil, err
 		}
