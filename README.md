@@ -4,6 +4,12 @@ Kubernetes operator to manage the lifecycle of a libsql database deployment
 
 ## Description
 
+Install the latest operator in the `releases` folder
+
+```sh
+kubectl apply -f https://raw.githubusercontent.com/ahti-database/ahti-operator/main/releases/v1.0.0.yaml
+```
+
 ## Getting Started
 
 ### Prerequisites
