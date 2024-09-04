@@ -1,0 +1,22 @@
+name: build
+
+on: 
+  push:
+    tags:
+      - 'v*.*.*'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v3
+      - uses: olegtarasov/get-tag@v2.1.3
+        id: tagName
+      - name: Build and push the image
+        run: |
+          docker login --username Jason-CKY --password ${{ secrets.GH_PAT }} ghcr.io
+          make docker-build IMG=ghcr.io/ahti-database/ahti-operator:$GIT_TAG_NAME
+          docker push ghcr.io/ahti-database/ahti-operator:$GIT_TAG_NAME
+          docker tag ghcr.io/ahti-database/ahti-operator:$GIT_TAG_NAME ghcr.io/ahti-database/ahti-operator:latest
+          docker push ghcr.io/ahti-database/ahti-operator:latest

@@ -4,5 +4,5 @@ apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
 images:
 - name: controller
-  newName: ahti-operator
-  newTag: "2345"
+  newName: ghcr.io/ahti-database/ahti-operator
+  newTag: v1.0.0
